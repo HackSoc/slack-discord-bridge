@@ -1,2 +1,30 @@
 # slack-discord-bridge
-Bridges a text channel between Slack and Discord
+*Bridges a text channel between Slack and Discord*
+
+## Setup
+0. Prerequisites  
+
+You need to have [Node.js](https://nodejs.org/en/download/) installed. This includes the runtime and the package manager required to install the dependencies.
+1. Clone the repository
+```
+git clone git@github.com:LukeMoll/slack-discord-bridge.git
+```
+2. Install dependencies
+```
+cd slack-discord-bridge
+npm install
+```
+3. Set up API keys
+
+Make copies of `discord.keys.js.example` and `slack.keys.js.example` and remove the `.example` ending. 
+
+For Discord, you need to [create an app](https://discordapp.com/developers/applications/me), then click "create bot user". Copy the bot user token into the `bot_token` field of `discord.keys.js`.  
+Next you need to create a webhook for the Discord channel of your choice. Click "Edit channel" (gear icon next to a text channel) and go to the webhooks section of the menu. (Note you will need the "Manage Webhooks" permission on your Discord server). Copy the ID and token (explained in `discord.keys.js`) into the relevant fields.
+
+For Slack, it's a little more complicated. [Create a new app](https://api.slack.com/apps) and choose your workspace from the list.  
+First go to "Incoming Webhooks" and turn it on. Add a new webhook to the workspace and copy the URL to `hook_url` in `slack.keys.js`.  
+Next go to OAuth & Permissions, and if you haven't already, add the bot to your workspace. Scroll to Scopes and add `users.profile:read`. `incoming-webhook` should already be there from setting up the webhook. Save changes, then go to Bot Users and add a bot user. Finally go back to OAuth & Permissions and install the app to your workspace. Copy the OAuth and Bot tokens to the correct places in `slack.keys.js`.
+
+4. Running
+
+`node bot.js` will run the bot until you stop it with `Ctrl-C`, but you may wish to leave it running longer than you have a terminal window open. An application running in the background is called a *daemon*. One way of daemonising this bot is to use `pm2`. After you have [installed](http://pm2.keymetrics.io/) it, just run `pm2 start bot.js` in the same directory as `bot.js`.
