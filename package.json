@@ -1,6 +1,6 @@
 {
   "name": "slack-discord-bridge",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Bridge between a single text channel on Discord and Slack",
   "main": "bot.js",
   "dependencies": {
