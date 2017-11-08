@@ -22,8 +22,13 @@ For Discord, you need to [create an app](https://discordapp.com/developers/appli
 Next you need to create a webhook for the Discord channel of your choice. Click "Edit channel" (gear icon next to a text channel) and go to the webhooks section of the menu. (Note you will need the "Manage Webhooks" permission on your Discord server). Copy the ID and token (explained in `discord.keys.js`) into the relevant fields.
 
 For Slack, it's a little more complicated. [Create a new app](https://api.slack.com/apps) and choose your workspace from the list.  
-First go to "Incoming Webhooks" and turn it on. Add a new webhook to the workspace and copy the URL to `hook_url` in `slack.keys.js`.  
-Next go to OAuth & Permissions, and if you haven't already, add the bot to your workspace. Scroll to Scopes and add `users.profile:read`. `incoming-webhook` should already be there from setting up the webhook. Save changes, then go to Bot Users and add a bot user. Finally go back to OAuth & Permissions and install the app to your workspace. Copy the OAuth and Bot tokens to the correct places in `slack.keys.js`.
+First go to OAuth & Permissions, and if you haven't already, add the bot to your workspace. 
+Scroll to Scopes and add `users.profile:read`.  
+Save changes, then go to Bot Users and add a bot user.  
+Finally go back to OAuth & Permissions and install the app to your workspace.  
+Copy the OAuth and Bot tokens to the correct places in `slack.keys.js`.   
+
+Now you need to add an [Incoming Webhook](https://hacksoc-york.slack.com/apps/A0F7XDUAZ-incoming-webhooks) as a custom integration. *Note that if you add this as part of the Slack app you created, the messages on Slack won't have the username or avatar of the Discord users sending them*. Choose the channel you want the webhook to post in, and copy the URL to `hook_url` in `slack.keys.js`.
 
 4. Running
 
