@@ -127,7 +127,7 @@ slackRTM.on(Slack.CLIENT_EVENTS.RTM.AUTHENTICATED, (rtmStartData) => {
 });
 
 slackRTM.on(Slack.RTM_EVENTS.MESSAGE, (message) => {
-    if(message.user) {
+    if(message.user && message.channel == slackChannel) {
        forwardMessageToDiscord(message); 
     }
     else {
