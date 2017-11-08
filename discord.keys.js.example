@@ -1,0 +1,12 @@
+module.exports = {
+    // Webhook has format https://discordapp.com/api/webhooks/WEBHOOK_ID/WEBHOOK_TOKEN
+    hook_id: 'WEBHOOK_ID_HERE', // First part 
+    hook_token: 'WEBHOOK_TOKEN_HERE', // second part
+
+    // Get this from https://discordapp.com/developers/applications/me
+    // Add an application and create a bot user, paste the token here
+    bot_token: 'BOT_TOKEN_HERE',
+
+    // The Discord channel you want to connect (no '#')
+    channel_name: 'CHANNEL NAME HERE'
+};

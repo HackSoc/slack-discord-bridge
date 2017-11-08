@@ -1,0 +1,28 @@
+{
+  "name": "slack-discord-bridge",
+  "version": "1.0.0",
+  "description": "Bridge between a single text channel on Discord and Slack",
+  "main": "bot.js",
+  "dependencies": {
+    "discord.js": "^11.2.1",
+    "request": "^2.83.0"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "node bot.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/LukeMoll/slack-discord-bridge.git"
+  },
+  "keywords": [
+    "Slack",
+    "Discord"
+  ],
+  "author": "Luke Moll",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/LukeMoll/slack-discord-bridge/issues"
+  },
+  "homepage": "https://github.com/LukeMoll/slack-discord-bridge#readme"
+}
