@@ -135,6 +135,15 @@ slackRTM.on(Slack.RTM_EVENTS.MESSAGE, (message) => {
     }
 });
 
+slackRTM.on(Slack.RTM_EVENTS.USER_CHANGE, (event) => {
+    var updated_profile = {
+        username: event.user.profile.display_name_normalized || event.user.profile.real_name_normalized,
+        avatar_url: event.user.profile.image_192
+    }
+    log(`USER_CHANGE event for ${updated_profile.username}`, 'slack', 2);
+    slack_profiles_cache[event.user.profile.id] = updated_profile;
+});
+
 discordBot.on('message', message => {
     if(!message.author.bot && message.channel.name === discordKey.channel_name){
         forwardMessageToSlack(message);
