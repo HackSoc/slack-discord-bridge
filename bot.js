@@ -34,7 +34,7 @@ function start() {
 }
 
 function forwardMessageToSlack(message) {
-    let avatarURL = message.author.avatarURL.replace(/\.webp.*$/i, ".png");
+    let avatarURL = message.author.displayAvatarURL.replace(/\.webp.*$/i, ".png");
 
     log(`displayName: ${message.member.displayName}`, 'discord', 3);
     log(`avatarURL: ${avatarURL}`, 'discord', 3);
