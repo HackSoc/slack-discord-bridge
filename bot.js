@@ -33,15 +33,15 @@ function start() {
     })
 }
 
-function forwardMessageToSlack(message) {
-    let avatarURL = message.author.displayAvatarURL.replace(/\.webp.*$/i, ".png");
+function forwardMessageToSlack(discordMessage) {
+    let avatarURL = discordMessage.author.displayAvatarURL.replace(/\.webp.*$/i, ".png");
 
-    log(`displayName: ${message.member.displayName}`, 'discord', 3);
+    log(`displayName: ${discordMessage.member.displayName}`, 'discord', 3);
     log(`avatarURL: ${avatarURL}`, 'discord', 3);
 
     data = {
-        text: message.content,
-        username: message.member.displayName,
+        text: discordMessage.cleanContent,
+        username: discordMessage.member.displayName,
         icon_url: avatarURL
     }
 
@@ -67,10 +67,53 @@ function forwardMessageToSlack(message) {
 
 var slack_profiles_cache = {}
 
+function normaliseSlackMessage(slackMessage) {
+    return new Promise((resolve, reject) => {
+        var channelRegex = /<#(?:.+?)\|([a-z0-9_-]{1,})>/g;
+        var usernameRegex = /<@(.+?)>/g;
+    
+        var cleanText = slackMessage.text.replace(channelRegex, "#$1");
+        
+        var userMatches = [];
+        let match;
+        while((match = usernameRegex.exec(cleanText)) != null) {
+            userMatches.push(match);
+        }
+        // Matches is array of ["<@userid>", "userid"]
+        // We want to map to array of {match: ["<@userid>", "userid"], name: "user name"}
+        
+        matchPromises = [];
+        for(var userMatch of userMatches) {
+            matchPromises.push(resolveSlackUserReplacement(userMatch));
+        }
+        Promise.all(matchPromises).then(userReplacements => {
+            log(`replacements: ${JSON.stringify(userReplacements,null,3)}`, 'slack', 3);
+            for(var replacement of userReplacements) {
+                cleanText = cleanText.replace(replacement.match[0], `@${replacement.username}`);
+            }
+            resolve(cleanText);
+        }).catch(err => {reject(err)});
+
+    });
+}
+
+function resolveSlackUserReplacement(match) {
+    return new Promise((resolve, reject) => {
+        fetchSlackProfile(match[1]).then(profile => {
+            resolve({
+                match: match,
+                username: profile.username
+            });
+        }).catch(err => {
+            reject(err);
+        })
+    });
+}
+
 function fetchSlackProfile(user) {
     return new Promise((resolve, reject) => {
         if(user in slack_profiles_cache) {
-            log(`Profile '${slack_profiles_cache[user].username} (${user} already in cache`, 'slack', 3);
+            log(`Profile '${slack_profiles_cache[user].username}' (${user}) already in cache`, 'slack', 3);
             resolve(slack_profiles_cache[user]);
         }
         else {
@@ -96,17 +139,21 @@ function fetchSlackProfile(user) {
     });
 }// Can your python do this?
 
-function forwardMessageToDiscord(message) {
-    fetchSlackProfile(message.user).then((fetched_profile) => {
+function forwardMessageToDiscord(slackMessage) {
+    log(JSON.stringify(slackMessage, null, 3), 'slack', 3);
+    var promises = [fetchSlackProfile(slackMessage.user), normaliseSlackMessage(slackMessage)];
+    Promise.all(promises).then(results => {
+        fetched_profile = results[0];
+        cleanText = results[1];
         let options = {
             'username': fetched_profile.username,
             'avatarURL': fetched_profile.avatar_url
         };
-        discordHook.send(message.text, options).then( (message) => {}).catch((err) => {
+        discordHook.send(cleanText, options).then( (message) => {}).catch((err) => {
             log(`Error while posting hook to Discord: ${err}`, 'slack', 0);
         })
     }).catch((err) => {
-        log(`Error while fetching profile: ${err}`, 'slack', 0)
+        log(`Error while forwarding to Discord: ${err}`, 'slack', 0)
     });    
 }
 
