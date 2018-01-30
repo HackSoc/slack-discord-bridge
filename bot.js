@@ -72,6 +72,7 @@ function normaliseSlackMessage(slackMessage) {
         var channelRegex = /<#(?:.+?)\|([a-z0-9_-]{1,})>/g;
         var usernameRegex = /<@(.+?)>/g;
     
+        // channel names can't contain [&<>]
         var cleanText = slackMessage.text.replace(channelRegex, "#$1");
         
         var userMatches = [];
@@ -91,6 +92,11 @@ function normaliseSlackMessage(slackMessage) {
             for(var replacement of userReplacements) {
                 cleanText = cleanText.replace(replacement.match[0], `@${replacement.username}`);
             }
+
+            // /g is important.
+            cleanText = cleanText.replace(/&gt;/g,">")
+                                 .replace(/&lt;/g,"<")
+                                 .replace(/&amp;/g, "&");
             resolve(cleanText);
         }).catch(err => {reject(err)});
 
