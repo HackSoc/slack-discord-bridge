@@ -4,6 +4,7 @@
   "description": "Bridge between a single text channel on Discord and Slack",
   "main": "bot.js",
   "dependencies": {
+    "@slack/client": "^3.16.0",
     "discord.js": "^11.2.1",
     "request": "^2.83.0"
   },
