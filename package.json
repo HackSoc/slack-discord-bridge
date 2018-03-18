@@ -1,11 +1,11 @@
 {
   "name": "slack-discord-bridge",
-  "version": "1.2.1",
+  "version": "1.3.0",
   "description": "Bridge between a single text channel on Discord and Slack",
   "main": "bot.js",
   "dependencies": {
     "@slack/client": "^3.16.0",
-    "discord.js": "^11.2.1",
+    "eris": "^0.8.5",
     "request": "^2.83.0"
   },
   "devDependencies": {},
