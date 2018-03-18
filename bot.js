@@ -1,6 +1,7 @@
 const Slack = require('@slack/client');
-const Discord = require('discord.js');
+const Eris = require("eris");
 const request = require('request');
+const util = require('util');
 
 // Init Slack first
 const slackKey = require('./slack.keys.js');
@@ -10,8 +11,7 @@ let slackChannel;
 var slackWeb = new Slack.WebClient(slackKey.oauth_token);
 
 const discordKey = require('./discord.keys.js');
-var discordHook = new Discord.WebhookClient(discordKey.hook_id, discordKey.hook_token);
-var discordBot = new Discord.Client();
+var discordBot = new Eris(discordKey.bot_token);
 
 const debugLogging = process.argv.indexOf('-v') >= 0;
 
@@ -26,22 +26,21 @@ function start() {
     slackRTM.start();
 
     log(`Logging in Discord with channel ${discordKey.channel_name}`, 'discord', 2);
-    discordBot.login(discordKey.bot_token).then( () => {
+    discordBot.connect();
+    discordBot.on('ready',  () => {
         log('Logged in OK', 'discord');
-    } ).catch(err => {
-        log(`Error when logging in: ${err}`, 'discord');
-    })
+    });
 }
 
 function forwardMessageToSlack(discordMessage) {
-    let avatarURL = discordMessage.author.displayAvatarURL.replace(/\.webp.*$/i, ".png");
-
-    log(`displayName: ${discordMessage.member.displayName}`, 'discord', 3);
+    let displayName = discordMessage.member&&discordMessage.member.nick?discordMessage.member.nick:discordMessage.author.username;
+    log(`displayName: ${displayName}`, 'discord', 3);
+    let avatarURL = discordMessage.author.avatarURL.replace(/\.webp.*$/i, ".png"); // Might not work for users with default avatar
     log(`avatarURL: ${avatarURL}`, 'discord', 3);
 
     data = {
-        text: discordMessage.cleanContent,
-        username: discordMessage.member.displayName,
+        text: discordMessage.content,
+        username: displayName,
         icon_url: avatarURL
     }
 
@@ -150,14 +149,16 @@ function forwardMessageToDiscord(slackMessage) {
     var promises = [fetchSlackProfile(slackMessage.user), normaliseSlackMessage(slackMessage)];
     Promise.all(promises).then(results => {
         fetched_profile = results[0];
-        cleanText = results[1];
+        // cleanText = results[1];
         let options = {
+            'content': results[1],
             'username': fetched_profile.username,
             'avatarURL': fetched_profile.avatar_url
         };
-        discordHook.send(cleanText, options).then( (message) => {}).catch((err) => {
-            log(`Error while posting hook to Discord: ${err}`, 'slack', 0);
-        })
+        // discordHook.send(cleanText, options).then( (message) => {}).catch((err) => {
+        //     log(`Error while posting hook to Discord: ${err}`, 'slack', 0);
+        // })
+        discordBot.executeWebhook(discordKey.hook_id, discordKey.hook_token, options);
     }).catch((err) => {
         log(`Error while forwarding to Discord: ${err}`, 'slack', 0)
     });    
@@ -197,10 +198,10 @@ slackRTM.on(Slack.RTM_EVENTS.USER_CHANGE, (event) => {
     slack_profiles_cache[event.user.profile.id] = updated_profile;
 });
 
-discordBot.on('message', message => {
-    if(!message.author.bot && message.channel.name === discordKey.channel_name){
-        forwardMessageToSlack(message);
+discordBot.on('messageCreate', msg => {    
+    if(msg.channel.name === discordKey.channel_name && msg.author.id !== discordKey.hook_id) {
+        forwardMessageToSlack(msg);
     }
-})
+});
 
 start();
