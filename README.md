@@ -7,7 +7,7 @@
 You need to have [Node.js](https://nodejs.org/en/download/) installed. This includes the runtime and the package manager required to install the dependencies.
 1. Clone the repository
 ```
-git clone git@github.com:LukeMoll/slack-discord-bridge.git
+git clone git@github.com:HackSoc/slack-discord-bridge.git
 ```
 2. Install dependencies
 ```
