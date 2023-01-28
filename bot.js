@@ -15,7 +15,7 @@ const slackApp = new Slack.App({
 let slackChannel;
 
 const discordKey = require('./discord.keys.js');
-var discordBot = new Eris(discordKey.bot_token);
+const discordBot = new Eris(discordKey.bot_token);
 
 const debugLogging = process.argv.indexOf('-v') >= 0;
 
@@ -30,7 +30,7 @@ function start() {
     slackApp.start().then(() => {
         // Get the channel ID
         slackApp.client.conversations.list().then(res => {
-            for(var channel of res.channels) {
+            for(let channel of res.channels) {
                 if(channel.name == slackKey.channel_name) {
                     slackChannel = channel.id;
                     log(`Logged in OK`, 'slack');
@@ -57,7 +57,7 @@ function forwardMessageToSlack(discordMessage) {
     let avatarURL = discordMessage.author.avatarURL.replace(/\.webp.*$/i, ".png"); // Might not work for users with default avatar
     log(`avatarURL: ${avatarURL}`, 'discord', 3);
 
-    data = {
+    const data = {
         text: discordMessage.content,
         username: displayName,
         icon_url: avatarURL
@@ -83,17 +83,17 @@ function forwardMessageToSlack(discordMessage) {
     })
 }
 
-var slack_profiles_cache = {}
+const slack_profiles_cache = {}
 
 function normaliseSlackMessage(slackMessage) {
     return new Promise((resolve, reject) => {
-        var channelRegex = /<#(?:.+?)\|([a-z0-9_-]{1,})>/g;
-        var usernameRegex = /<@(.+?)>/g;
+        const channelRegex = /<#(?:.+?)\|([a-z0-9_-]+)>/g;
+        const usernameRegex = /<@(.+?)>/g;
     
         // channel names can't contain [&<>]
-        var cleanText = slackMessage.text.replace(channelRegex, "#$1");
+        let cleanText = slackMessage.text.replace(channelRegex, "#$1");
         
-        var userMatches = [];
+        const userMatches = [];
         let match;
         while((match = usernameRegex.exec(cleanText)) != null) {
             userMatches.push(match);
@@ -101,13 +101,13 @@ function normaliseSlackMessage(slackMessage) {
         // Matches is array of ["<@userid>", "userid"]
         // We want to map to array of {match: ["<@userid>", "userid"], name: "user name"}
         
-        matchPromises = [];
-        for(var userMatch of userMatches) {
+        const matchPromises = [];
+        for(let userMatch of userMatches) {
             matchPromises.push(resolveSlackUserReplacement(userMatch));
         }
         Promise.all(matchPromises).then(userReplacements => {
             log(`replacements: ${JSON.stringify(userReplacements,null,3)}`, 'slack', 3);
-            for(var replacement of userReplacements) {
+            for(let replacement of userReplacements) {
                 cleanText = cleanText.replace(replacement.match[0], `@${replacement.username}`);
             }
 
@@ -117,7 +117,6 @@ function normaliseSlackMessage(slackMessage) {
                                  .replace(/&amp;/g, "&");
             resolve(cleanText);
         }).catch(err => {reject(err)});
-
     });
 }
 
@@ -143,40 +142,31 @@ function fetchSlackProfile(user) {
         else {
             //not in our cache
             log(`Fetching profile for uncached ID ${user}...`, 'slack', 3);
-            recieved_profile = {};
-            slackApp.client.users.profile.get({user: user}, (err, data) => {
-                if(err) {
-                    reject(err);
-                }
-                else {
-                    var cached_profile = {
-                        username: data.profile.display_name_normalized || data.profile.real_name_normalized,
-                        avatar_url: data.profile.image_192
-                    };
-                    log(`Profile recieved for ${cached_profile.username}`, 'slack', 3);
-                    slack_profiles_cache[user] = cached_profile;
-                    resolve(cached_profile);
-                }
+            slackApp.client.users.profile.get({ user: user }).then(res => {
+                const cached_profile = {
+                    username: res.profile.display_name_normalized || res.profile.real_name_normalized,
+                    avatar_url: res.profile.image_192
+                };
+                log(`Profile recieved for ${cached_profile.username}`, 'slack', 3);
+                slack_profiles_cache[user] = cached_profile;
+                resolve(cached_profile);
+            }).catch(err => {
+                reject(err);
             });
-
         }
     });
 }// Can your python do this?
 
 function forwardMessageToDiscord(slackMessage) {
     log(JSON.stringify(slackMessage, null, 3), 'slack', 3);
-    var promises = [fetchSlackProfile(slackMessage.user), normaliseSlackMessage(slackMessage)];
+    const promises = [fetchSlackProfile(slackMessage.user), normaliseSlackMessage(slackMessage)];
     Promise.all(promises).then(results => {
-        fetched_profile = results[0];
-        // cleanText = results[1];
+        const fetched_profile = results[0];
         let options = {
             'content': results[1],
             'username': fetched_profile.username,
             'avatarURL': fetched_profile.avatar_url
         };
-        // discordHook.send(cleanText, options).then( (message) => {}).catch((err) => {
-        //     log(`Error while posting hook to Discord: ${err}`, 'slack', 0);
-        // })
         discordBot.executeWebhook(discordKey.hook_id, discordKey.hook_token, options);
     }).catch((err) => {
         log(`Error while forwarding to Discord: ${err}`, 'slack', 0)
@@ -185,30 +175,9 @@ function forwardMessageToDiscord(slackMessage) {
 
 /*************************************************************/
 
-slackApp.message('', async ({ message, say }) => {
-    log(`Message recieved from Slack: ${message}`, 'slack');
-    if(message.user && message.channel == slackChannel) {
-         forwardMessageToDiscord(message);
-    }
-    else {
-        //No user id => author is probably a webhook
-    }
-});
-
-slackApp.event('app_mention', async ({ event, say }) => {
-    log(`Message recieved from Slack: ${event}`, 'slack');
-    if(event.user && event.channel == slackChannel) {
-         forwardMessageToDiscord(event);
-    }
-    else {
-        //No user id => author is probably a webhook
-    }
-});
-
 slackApp.event('message', async ({ event, context }) => {
-    log(`Message recieved from Slack: ${event}`, 'slack');
     if(event.user && event.channel == slackChannel) {
-       forwardMessageToDiscord(event);
+        forwardMessageToDiscord(event);
     }
     else {
         //No user id => author is probably a webhook
@@ -216,7 +185,7 @@ slackApp.event('message', async ({ event, context }) => {
 });
 
 slackApp.event('user_change', async ({ event, context }) => {
-    var updated_profile = {
+    const updated_profile = {
         username: event.user.profile.display_name_normalized || event.user.profile.real_name_normalized,
         avatar_url: event.user.profile.image_192
     }
@@ -225,7 +194,6 @@ slackApp.event('user_change', async ({ event, context }) => {
 });
 
 discordBot.on('messageCreate', async (msg) => {
-    log(`Message recieved from Discord: ${msg.content}`, 'discord');
     if(msg.channel.name === discordKey.channel_name && msg.author.id !== discordKey.hook_id) {
         forwardMessageToSlack(msg);
     }
