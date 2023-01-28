@@ -5,8 +5,8 @@ const util = require('util');
 
 // Init Slack first
 const slackKey = require('./slack.keys.js');
-var slackApp = new Slack.App({
-    token: slackKey.oauth_token,
+const slackApp = new Slack.App({
+    token: slackKey.bot_token,
     appToken: slackKey.app_token,
     signingSecret: slackKey.signing_secret,
     logLevel: Slack.LogLevel.ERROR,
