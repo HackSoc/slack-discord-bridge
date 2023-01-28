@@ -155,7 +155,7 @@ function fetchSlackProfile(user) {
             });
         }
     });
-}// Can your python do this?
+}
 
 function forwardMessageToDiscord(slackMessage) {
     log(JSON.stringify(slackMessage, null, 3), 'slack', 3);
