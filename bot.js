@@ -1,14 +1,18 @@
-const Slack = require('@slack/client');
+const Slack = require('@slack/bolt');
 const Eris = require("eris");
 const request = require('request');
 const util = require('util');
 
 // Init Slack first
 const slackKey = require('./slack.keys.js');
-var slackRTM = new Slack.RtmClient(slackKey.bot_token);
+var slackApp = new Slack.App({
+    token: slackKey.oauth_token,
+    appToken: slackKey.app_token,
+    signingSecret: slackKey.signing_secret,
+    logLevel: Slack.LogLevel.ERROR,
+    socketMode: true
+});
 let slackChannel;
-
-var slackWeb = new Slack.WebClient(slackKey.oauth_token);
 
 const discordKey = require('./discord.keys.js');
 var discordBot = new Eris(discordKey.bot_token);
@@ -23,7 +27,22 @@ function log(message, pre, level=0) {
 
 function start() {
     log(`Logging in Slack with channel ${slackKey.channel_name}`, 'slack', 2);
-    slackRTM.start();
+    slackApp.start().then(() => {
+        // Get the channel ID
+        slackApp.client.conversations.list().then(res => {
+            for(var channel of res.channels) {
+                if(channel.name == slackKey.channel_name) {
+                    slackChannel = channel.id;
+                    log(`Logged in OK`, 'slack');
+                    break;
+                }
+            }
+            if(!slackChannel) {
+                log(`Channel ${slackKey.channel_name} not found`, 'slack');
+                process.exit(6);
+            }
+        });
+    });
 
     log(`Logging in Discord with channel ${discordKey.channel_name}`, 'discord', 2);
     discordBot.connect();
@@ -125,7 +144,7 @@ function fetchSlackProfile(user) {
             //not in our cache
             log(`Fetching profile for uncached ID ${user}...`, 'slack', 3);
             recieved_profile = {};
-            slackWeb.users.profile.get({user: user}, (err, data) => {
+            slackApp.client.users.profile.get({user: user}, (err, data) => {
                 if(err) {
                     reject(err);
                 }
@@ -166,30 +185,37 @@ function forwardMessageToDiscord(slackMessage) {
 
 /*************************************************************/
 
-slackRTM.on(Slack.CLIENT_EVENTS.RTM.AUTHENTICATED, (rtmStartData) => {
-    for(const c of rtmStartData.channels) {
-        if(c.is_member && c.name === slackKey.channel_name) {
-            slackChannel = c.id 
-            log(`Logged in OK and selected channel ${c.name}`, 'slack');
-            break;
-        }
-    }
-    if(!slackChannel) {
-        log(`Channel ${slackKey.channel_name} not found`, 'slack');
-        process.exit(6);
-    }
-});
-
-slackRTM.on(Slack.RTM_EVENTS.MESSAGE, (message) => {
+slackApp.message('', async ({ message, say }) => {
+    log(`Message recieved from Slack: ${message}`, 'slack');
     if(message.user && message.channel == slackChannel) {
-       forwardMessageToDiscord(message); 
+         forwardMessageToDiscord(message);
     }
     else {
         //No user id => author is probably a webhook
     }
 });
 
-slackRTM.on(Slack.RTM_EVENTS.USER_CHANGE, (event) => {
+slackApp.event('app_mention', async ({ event, say }) => {
+    log(`Message recieved from Slack: ${event}`, 'slack');
+    if(event.user && event.channel == slackChannel) {
+         forwardMessageToDiscord(event);
+    }
+    else {
+        //No user id => author is probably a webhook
+    }
+});
+
+slackApp.event('message', async ({ event, context }) => {
+    log(`Message recieved from Slack: ${event}`, 'slack');
+    if(event.user && event.channel == slackChannel) {
+       forwardMessageToDiscord(event);
+    }
+    else {
+        //No user id => author is probably a webhook
+    }
+});
+
+slackApp.event('user_change', async ({ event, context }) => {
     var updated_profile = {
         username: event.user.profile.display_name_normalized || event.user.profile.real_name_normalized,
         avatar_url: event.user.profile.image_192
@@ -198,7 +224,8 @@ slackRTM.on(Slack.RTM_EVENTS.USER_CHANGE, (event) => {
     slack_profiles_cache[event.user.profile.id] = updated_profile;
 });
 
-discordBot.on('messageCreate', msg => {    
+discordBot.on('messageCreate', async (msg) => {
+    log(`Message recieved from Discord: ${msg.content}`, 'discord');
     if(msg.channel.name === discordKey.channel_name && msg.author.id !== discordKey.hook_id) {
         forwardMessageToSlack(msg);
     }
