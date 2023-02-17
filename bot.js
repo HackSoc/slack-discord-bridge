@@ -52,13 +52,24 @@ function start() {
 }
 
 function forwardMessageToSlack(discordMessage) {
-    let displayName = discordMessage.member&&discordMessage.member.nick?discordMessage.member.nick:discordMessage.author.username;
+    let displayName = (discordMessage.member && discordMessage.member.nick) ? discordMessage.member.nick : discordMessage.author.username;
     log(`displayName: ${displayName}`, 'discord', 3);
     let avatarURL = discordMessage.author.avatarURL.replace(/\.webp.*$/i, ".png"); // Might not work for users with default avatar
     log(`avatarURL: ${avatarURL}`, 'discord', 3);
 
+    let content = discordMessage.content || "";
+
+    // check for attachments
+    if(discordMessage.attachments.length > 0) {
+        for(let attachment of discordMessage.attachments) {
+            if(attachment.url) {
+                content += `\n${attachment.url}`;
+            }
+        }
+    }
+
     const data = {
-        text: discordMessage.content,
+        text: content,
         username: displayName,
         icon_url: avatarURL
     }
@@ -159,18 +170,30 @@ function fetchSlackProfile(user) {
 
 function forwardMessageToDiscord(slackMessage) {
     log(JSON.stringify(slackMessage, null, 3), 'slack', 3);
+
+
     const promises = [fetchSlackProfile(slackMessage.user), normaliseSlackMessage(slackMessage)];
     Promise.all(promises).then(results => {
         const fetched_profile = results[0];
+        let content = results[1] || "";
+    
+        if(slackMessage.files && slackMessage.files.length > 0) {
+            for(let attachment of slackMessage.files) {
+                if(attachment.url_private) {
+                    content += `\n${attachment.url_private}`;
+                }
+            }
+        }
+
         let options = {
-            'content': results[1],
+            'content': content,
             'username': fetched_profile.username,
             'avatarURL': fetched_profile.avatar_url
         };
         discordBot.executeWebhook(discordKey.hook_id, discordKey.hook_token, options);
     }).catch((err) => {
         log(`Error while forwarding to Discord: ${err}`, 'slack', 0)
-    });    
+    });
 }
 
 /*************************************************************/
