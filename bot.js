@@ -55,6 +55,11 @@ function forwardMessageToSlack(discordMessage) {
         }
     }
 
+    if(content.legnth == 0) {
+        log(`No content to forward for ${displayName}`, 'discord', 3);
+        return;
+    }
+
     const data = {
         text: content,
         username: displayName,
@@ -174,6 +179,11 @@ function forwardMessageToDiscord(slackMessage) {
                     content += `\n${attachment.url_private}`;
                 }
             }
+        }
+
+        if(content.length == 0) {
+            log(`No content to forward for ${fetched_profile.username}`, 'slack', 3);
+            return;
         }
 
         let options = {
