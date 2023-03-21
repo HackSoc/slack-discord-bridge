@@ -11,6 +11,6 @@ module.exports = {
     // Slack signing secret here to verify requests
     signing_secret: 'SLACK_SIGNING_SECRET_HERE',
 
-    // The Slack channel you want to connect (no '#')
-    channel_name: 'CHANNEL-NAME-HERE'
+    // The id of the channel you want to connect
+    channel_id: 'CHANNEL_ID_HERE'
 };

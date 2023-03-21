@@ -26,25 +26,12 @@ function log(message, pre, level=0) {
 }
 
 function start() {
-    log(`Logging in Slack with channel ${slackKey.channel_name}`, 'slack', 2);
+    // log(`Logging in Slack with channel ${slackKey.channel_name}`, 'slack', 2);
     slackApp.start().then(() => {
-        // Get the channel ID
-        slackApp.client.conversations.list({limit: 1000}).then(res => {
-            for(let channel of res.channels) {
-                if(channel.name == slackKey.channel_name) {
-                    slackChannel = channel.id;
-                    log(`Logged in OK`, 'slack');
-                    break;
-                }
-            }
-            if(!slackChannel) {
-                log(`Channel ${slackKey.channel_name} not found`, 'slack');
-                process.exit(6);
-            }
-        });
+        log(`Logged in OK`, 'slack');
     });
 
-    log(`Logging in Discord with channel ${discordKey.channel_name}`, 'discord', 2);
+    // log(`Logging in Discord with channel ${discordKey.channel_name}`, 'discord', 2);
     discordBot.connect();
     discordBot.on('ready',  () => {
         log('Logged in OK', 'discord');
@@ -176,7 +163,6 @@ function fetchSlackProfile(user) {
 function forwardMessageToDiscord(slackMessage) {
     log(JSON.stringify(slackMessage, null, 3), 'slack', 3);
 
-
     const promises = [fetchSlackProfile(slackMessage.user), normaliseSlackMessage(slackMessage)];
     Promise.all(promises).then(results => {
         const fetched_profile = results[0];
@@ -204,7 +190,7 @@ function forwardMessageToDiscord(slackMessage) {
 /*************************************************************/
 
 slackApp.event('message', async ({ event, context }) => {
-    if(event.user && event.channel == slackChannel) {
+    if(event.user && event.channel == slackKey.channel_id) {
         forwardMessageToDiscord(event);
     }
     else {
@@ -222,7 +208,7 @@ slackApp.event('user_change', async ({ event, context }) => {
 });
 
 discordBot.on('messageCreate', async (msg) => {
-    if(msg.channel.name === discordKey.channel_name && msg.author.id !== discordKey.hook_id) {
+    if(msg.channel.id === discordKey.channel_id && msg.author.id !== discordKey.hook_id) {
         forwardMessageToSlack(msg);
     }
 });
