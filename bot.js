@@ -29,7 +29,7 @@ function start() {
     log(`Logging in Slack with channel ${slackKey.channel_name}`, 'slack', 2);
     slackApp.start().then(() => {
         // Get the channel ID
-        slackApp.client.conversations.list().then(res => {
+        slackApp.client.conversations.list({limit: 1000}).then(res => {
             for(let channel of res.channels) {
                 if(channel.name == slackKey.channel_name) {
                     slackChannel = channel.id;
@@ -153,16 +153,21 @@ function fetchSlackProfile(user) {
         else {
             //not in our cache
             log(`Fetching profile for uncached ID ${user}...`, 'slack', 3);
-            slackApp.client.users.profile.get({ user: user }).then(res => {
-                const cached_profile = {
-                    username: res.profile.display_name_normalized || res.profile.real_name_normalized,
-                    avatar_url: res.profile.image_192
-                };
-                log(`Profile recieved for ${cached_profile.username}`, 'slack', 3);
-                slack_profiles_cache[user] = cached_profile;
-                resolve(cached_profile);
+            slackApp.client.users.info({user: user}).then(res => {
+                if(res.ok) {
+                    const cached_profile = {
+                        username: res.user.profile.real_name_normalized,
+                        avatar_url: res.user.profile.image_192,
+                    }
+                    log(`Profile recieved for ${cached_profile.username}`, 'slack', 3);
+                    slack_profiles_cache[user] = cached_profile;
+                    resolve(cached_profile);
+                }
+                else {
+                    reject(`Error fetching profile for user ${user}: ${res.error}`);
+                }
             }).catch(err => {
-                reject(err);
+                reject(`Error fetching profile for user ${user}: ${err}`);
             });
         }
     });
