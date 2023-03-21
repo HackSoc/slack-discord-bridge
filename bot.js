@@ -165,6 +165,21 @@ function fetchSlackProfile(user) {
     });
 }
 
+function fetchSlackFile(file) {
+    return new Promise((resolve, reject) => {
+        slackApp.client.files.info({file: file}).then(res => {
+            if(res.ok) {
+                resolve(res.file);
+            }
+            else {
+                reject(`Error fetching file ${file}: ${res.error}`);
+            }
+        }).catch(err => {
+            reject(`Error fetching file ${file}: ${err}`);
+        });
+    });
+}
+
 function forwardMessageToDiscord(slackMessage) {
     log(JSON.stringify(slackMessage, null, 3), 'slack', 3);
 
@@ -172,26 +187,35 @@ function forwardMessageToDiscord(slackMessage) {
     Promise.all(promises).then(results => {
         const fetched_profile = results[0];
         let content = results[1] || "";
+        let promises = [];
     
         if(slackMessage.files && slackMessage.files.length > 0) {
-            for(let attachment of slackMessage.files) {
-                if(attachment.url_private) {
-                    content += `\n${attachment.url_private}`;
+            for(let file of slackMessage.files) {
+                if(file.id) {
+                    promises.push(fetchSlackFile(file.id).then(fetchedFile => {
+                        if(fetchedFile.url_private) {
+                            content += `\n${fetchedFile.url_private}`;
+                        }
+                    }));
                 }
             }
         }
 
-        if(content.length == 0) {
-            log(`No content to forward for ${fetched_profile.username}`, 'slack', 3);
-            return;
-        }
+        Promise.all(promises).then(() => {
+            if(content.length == 0) {
+                log(`No content to forward for ${fetched_profile.username}`, 'slack', 3);
+                return;
+            }
 
-        let options = {
-            'content': content,
-            'username': fetched_profile.username,
-            'avatarURL': fetched_profile.avatar_url
-        };
-        discordBot.executeWebhook(discordKey.hook_id, discordKey.hook_token, options);
+            let options = {
+                'content': content,
+                'username': fetched_profile.username,
+                'avatarURL': fetched_profile.avatar_url
+            };
+            discordBot.executeWebhook(discordKey.hook_id, discordKey.hook_token, options);
+        }).catch(err => {
+            log(`Error when fetching files: ${err}`, 'slack');
+        });
     }).catch((err) => {
         log(`Error while forwarding to Discord: ${err}`, 'slack', 0)
     });
