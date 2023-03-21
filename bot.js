@@ -143,7 +143,7 @@ function fetchSlackProfile(user) {
             slackApp.client.users.info({user: user}).then(res => {
                 if(res.ok) {
                     const cached_profile = {
-                        username: res.user.profile.real_name_normalized,
+                        username: res.user.profile.display_name_normalized || res.user.profile.real_name_normalized,
                         avatar_url: res.user.profile.image_192,
                     }
                     log(`Profile recieved for ${cached_profile.username}`, 'slack', 3);
