@@ -20,25 +20,23 @@ const discordBot = new Eris(discordKey.bot_token);
 const debugLogging = process.argv.indexOf('-v') >= 0;
 
 function log(message, pre, level=0) {
-    if(level == 0 || debugLogging) {
+    if (level == 0 || debugLogging) {
         console.log(`[${pre}]${'\t'}${message}`);
     }
 }
 
 function start() {
-    // log(`Logging in Slack with channel ${slackKey.channel_name}`, 'slack', 2);
     slackApp.start().then(() => {
         log(`Logged in OK`, 'slack');
     });
 
-    // log(`Logging in Discord with channel ${discordKey.channel_name}`, 'discord', 2);
     discordBot.connect();
     discordBot.on('ready',  () => {
         log('Logged in OK', 'discord');
     });
 }
 
-function forwardMessageToSlack(discordMessage) {
+async function forwardMessageToSlack(discordMessage) {
     let displayName = (discordMessage.member && discordMessage.member.nick) ? discordMessage.member.nick : discordMessage.author.username;
     log(`displayName: ${displayName}`, 'discord', 3);
     let avatarURL = discordMessage.author.avatarURL.replace(/\.webp.*$/i, ".png"); // Might not work for users with default avatar
@@ -47,15 +45,15 @@ function forwardMessageToSlack(discordMessage) {
     let content = discordMessage.content || "";
 
     // check for attachments
-    if(discordMessage.attachments.length > 0) {
+    if (discordMessage.attachments.length > 0) {
         for(let attachment of discordMessage.attachments) {
-            if(attachment.url) {
+            if (attachment.url) {
                 content += `\n${attachment.url}`;
             }
         }
     }
 
-    if(content.legnth == 0) {
+    if (content.legnth == 0) {
         log(`No content to forward for ${displayName}`, 'discord', 3);
         return;
     }
@@ -68,164 +66,153 @@ function forwardMessageToSlack(discordMessage) {
 
     log(`data: ${JSON.stringify(data,null,3)}`, 'discord', 3);
 
-    request({
-        url: slackKey.hook_url,
-        method: "POST",
-        headers: {
-            "content-type": "application/json"
-        },
-        json: data
-    }, (err, res, body) => {
-        if(err) {
-            log(`Error when posting to Slack: ${err}`, 'discord');
-        }
-        else {
-            //we good
-            log(`Slack response: ${body}`, 'discord', 3);
-        }
-    })
+    try {
+        const response = await request({
+            url: slackKey.hook_url,
+            method: "POST",
+            headers: {
+                "content-type": "application/json"
+            },
+            json: data
+        });
+        log(`Slack response: ${response.body}`, 'discord', 3);
+    } catch (err) {
+        log(`Error when posting to Slack: ${err}`, 'discord');
+    }
 }
 
 const slack_profiles_cache = {}
 
-function normaliseSlackMessage(slackMessage) {
-    return new Promise((resolve, reject) => {
-        const channelRegex = /<#(?:.+?)\|([a-z0-9_-]+)>/g;
-        const usernameRegex = /<@(.+?)>/g;
+async function normaliseSlackMessage(slackMessage) {
+    const channelRegex = /<#(?:.+?)\|([a-z0-9_-]+)>/g;
+    const usernameRegex = /<@(.+?)>/g;
+
+    // channel names can't contain [&<>]
+    let cleanText = slackMessage.text.replace(channelRegex, "#$1");
     
-        // channel names can't contain [&<>]
-        let cleanText = slackMessage.text.replace(channelRegex, "#$1");
-        
-        const userMatches = [];
-        let match;
-        while((match = usernameRegex.exec(cleanText)) != null) {
-            userMatches.push(match);
+    const userMatches = [];
+    let match;
+    while ((match = usernameRegex.exec(cleanText)) != null) {
+        userMatches.push(match);
+    }
+    // Matches is array of ["<@userid>", "userid"]
+    // We want to map to array of {match: ["<@userid>", "userid"], name: "user name"}
+    
+    const matchPromises = [];
+    for(let userMatch of userMatches) {
+        matchPromises.push(resolveSlackUserReplacement(userMatch));
+    }
+    try {
+        const userReplacements = await Promise.all(matchPromises);
+        log(`replacements: ${JSON.stringify(userReplacements, null, 3)}`, 'slack', 3);
+        for (let replacement of userReplacements) {
+            cleanText = cleanText.replace(replacement.match[0], `@${replacement.username}`);
         }
-        // Matches is array of ["<@userid>", "userid"]
-        // We want to map to array of {match: ["<@userid>", "userid"], name: "user name"}
-        
-        const matchPromises = [];
-        for(let userMatch of userMatches) {
-            matchPromises.push(resolveSlackUserReplacement(userMatch));
-        }
-        Promise.all(matchPromises).then(userReplacements => {
-            log(`replacements: ${JSON.stringify(userReplacements,null,3)}`, 'slack', 3);
-            for(let replacement of userReplacements) {
-                cleanText = cleanText.replace(replacement.match[0], `@${replacement.username}`);
-            }
 
-            // /g is important.
-            cleanText = cleanText.replace(/&gt;/g,">")
-                                 .replace(/&lt;/g,"<")
-                                 .replace(/&amp;/g, "&");
-            resolve(cleanText);
-        }).catch(err => {reject(err)});
-    });
+        cleanText = cleanText.replace(/&gt;/g, ">")
+                             .replace(/&lt;/g, "<")
+                             .replace(/&amp;/g, "&");
+        return cleanText;
+    } catch (err) {
+        throw err;
+    }
 }
 
-function resolveSlackUserReplacement(match) {
-    return new Promise((resolve, reject) => {
-        fetchSlackProfile(match[1]).then(profile => {
-            resolve({
-                match: match,
-                username: profile.username
-            });
-        }).catch(err => {
-            reject(err);
-        })
-    });
+async function resolveSlackUserReplacement(match) {
+    try {
+        const profile = await fetchSlackProfile(match[1]);
+        return {
+            match: match,
+            username: profile.username
+        };
+    } catch (err) {
+        throw err;
+    }
 }
 
-function fetchSlackProfile(user) {
-    return new Promise((resolve, reject) => {
-        if(user in slack_profiles_cache) {
-            log(`Profile '${slack_profiles_cache[user].username}' (${user}) already in cache`, 'slack', 3);
-            resolve(slack_profiles_cache[user]);
-        }
-        else {
-            //not in our cache
-            log(`Fetching profile for uncached ID ${user}...`, 'slack', 3);
-            slackApp.client.users.info({user: user}).then(res => {
-                if(res.ok) {
-                    const cached_profile = {
-                        username: res.user.profile.display_name_normalized || res.user.profile.real_name_normalized,
-                        avatar_url: res.user.profile.image_192,
-                    }
-                    log(`Profile recieved for ${cached_profile.username}`, 'slack', 3);
-                    slack_profiles_cache[user] = cached_profile;
-                    resolve(cached_profile);
+async function fetchSlackProfile(user) {
+    if (user in slack_profiles_cache) {
+        log(`Profile '${slack_profiles_cache[user].username}' (${user}) already in cache`, 'slack', 3);
+        resolve(slack_profiles_cache[user]);
+    }
+    else {
+        //not in our cache
+        log(`Fetching profile for uncached ID ${user}...`, 'slack', 3);
+        try {
+            const res = await slackApp.client.users.info({ user: user });
+            if (res.ok) {
+                const cached_profile = {
+                    username: res.user.profile.display_name_normalized || res.user.profile.real_name_normalized,
+                    avatar_url: res.user.profile.image_192,
                 }
-                else {
-                    reject(`Error fetching profile for user ${user}: ${res.error}`);
-                }
-            }).catch(err => {
-                reject(`Error fetching profile for user ${user}: ${err}`);
-            });
+                log(`Profile received for ${cached_profile.username}`, 'slack', 3);
+                slack_profiles_cache[user] = cached_profile;
+                return cached_profile;
+            } else {
+                throw new Error(`Error fetching profile for user ${user}: ${res.error}`);
+            }
+        } catch (err) {
+            throw new Error(`Error fetching profile for user ${user}: ${err}`);
         }
-    });
+    }
 }
 
-function fetchSlackFile(file) {
-    return new Promise((resolve, reject) => {
-        slackApp.client.files.info({file: file}).then(res => {
-            if(res.ok) {
-                resolve(res.file);
-            }
-            else {
-                reject(`Error fetching file ${file}: ${res.error}`);
-            }
-        }).catch(err => {
-            reject(`Error fetching file ${file}: ${err}`);
-        });
-    });
+async function fetchSlackFile(file) {
+    try {
+        const res = await slackApp.client.files.info({ file: file });
+        if (res.ok) {
+            return res.file;
+        } else {
+            throw new Error(`Error fetching file ${file}: ${res.error}`);
+        }
+    } catch (err) {
+        throw new Error(`Error fetching file ${file}: ${err}`);
+    }
 }
 
-function forwardMessageToDiscord(slackMessage) {
+async function forwardMessageToDiscord(slackMessage) {
     log(JSON.stringify(slackMessage, null, 3), 'slack', 3);
 
     const promises = [fetchSlackProfile(slackMessage.user), normaliseSlackMessage(slackMessage)];
-    Promise.all(promises).then(results => {
-        const fetched_profile = results[0];
-        let content = results[1] || "";
-        let promises = [];
-    
-        if(slackMessage.files && slackMessage.files.length > 0) {
-            for(let file of slackMessage.files) {
-                if(file.id) {
-                    promises.push(fetchSlackFile(file.id).then(fetchedFile => {
-                        if(fetchedFile.url_private) {
-                            content += `\n${fetchedFile.url_private}`;
+    try {
+        const [fetched_profile, content] = await Promise.all(promises);
+        let filePromises = [];
+
+        if (slackMessage.files && slackMessage.files.length > 0) {
+            for (let file of slackMessage.files) {
+                if (file.id) {
+                    filePromises.push(fetchSlackFile(file.id).then(fetchedFile => {
+                        if (fetchedFile.permalink_public) {
+                            content += `\n${fetchedFile.permalink_public}`;
                         }
                     }));
                 }
             }
         }
-
-        Promise.all(promises).then(() => {
-            if(content.length == 0) {
-                log(`No content to forward for ${fetched_profile.username}`, 'slack', 3);
-                return;
-            }
-
-            let options = {
-                'content': content,
-                'username': fetched_profile.username,
-                'avatarURL': fetched_profile.avatar_url
-            };
-            discordBot.executeWebhook(discordKey.hook_id, discordKey.hook_token, options);
-        }).catch(err => {
-            log(`Error when fetching files: ${err}`, 'slack');
-        });
-    }).catch((err) => {
+    
+        await Promise.all(filePromises);
+    
+        if (content.length == 0) {
+            log(`No content to forward for ${fetched_profile.username}`, 'slack', 3);
+            return;
+        }
+    
+        let options = {
+            'content': content,
+            'username': fetched_profile.username,
+            'avatarURL': fetched_profile.avatar_url
+        };
+        discordBot.executeWebhook(discordKey.hook_id, discordKey.hook_token, options);
+    } catch (err) {
         log(`Error while forwarding to Discord: ${err}`, 'slack', 0)
-    });
+    }
 }
 
 /*************************************************************/
 
 slackApp.event('message', async ({ event, context }) => {
-    if(event.user && event.channel == slackKey.channel_id) {
-        forwardMessageToDiscord(event);
+    if (event.user && event.channel == slackKey.channel_id) {
+        await forwardMessageToDiscord(event);
     }
     else {
         //No user id => author is probably a webhook
@@ -242,8 +229,8 @@ slackApp.event('user_change', async ({ event, context }) => {
 });
 
 discordBot.on('messageCreate', async (msg) => {
-    if(msg.channel.id === discordKey.channel_id && msg.author.id !== discordKey.hook_id) {
-        forwardMessageToSlack(msg);
+    if (msg.channel.id === discordKey.channel_id && msg.author.id !== discordKey.hook_id) {
+        await forwardMessageToSlack(msg);
     }
 });
 
