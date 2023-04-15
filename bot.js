@@ -46,7 +46,7 @@ async function forwardMessageToSlack(discordMessage) {
 
     // check for attachments
     if (discordMessage.attachments.length > 0) {
-        for(let attachment of discordMessage.attachments) {
+        for (let attachment of discordMessage.attachments) {
             if (attachment.url) {
                 content += `\n${attachment.url}`;
             }
@@ -99,7 +99,7 @@ async function normaliseSlackMessage(slackMessage) {
     // We want to map to array of {match: ["<@userid>", "userid"], name: "user name"}
     
     const matchPromises = [];
-    for(let userMatch of userMatches) {
+    for (let userMatch of userMatches) {
         matchPromises.push(resolveSlackUserReplacement(userMatch));
     }
     try {
@@ -133,7 +133,7 @@ async function resolveSlackUserReplacement(match) {
 async function fetchSlackProfile(user) {
     if (user in slack_profiles_cache) {
         log(`Profile '${slack_profiles_cache[user].username}' (${user}) already in cache`, 'slack', 3);
-        resolve(slack_profiles_cache[user]);
+        return slack_profiles_cache[user];
     }
     else {
         //not in our cache
@@ -157,40 +157,49 @@ async function fetchSlackProfile(user) {
     }
 }
 
-async function fetchSlackFile(file) {
+async function fetchSlackFile(fileId) {
     try {
-        const res = await slackApp.client.files.info({ file: file });
-        if (res.ok) {
-            return res.file;
-        } else {
-            throw new Error(`Error fetching file ${file}: ${res.error}`);
+        // const fileInfo = await slackApp.client.files.info({ file: fileId });
+        // if (!fileInfo.ok) {
+        //     throw new Error(`Error fetching file ${fileId}: ${fileInfo.error}`);
+        // }
+        const filePublic = await slackApp.client.files.sharedPublicURL({
+            token: slackKey.user_token,
+            file: fileId
+        });
+        if (!filePublic.ok) {
+            throw new Error(`Error fetching file ${fileId}: ${filePublic.error}`);
         }
+        return filePublic.file;
     } catch (err) {
-        throw new Error(`Error fetching file ${file}: ${err}`);
+        throw new Error(`Error fetching file ${fileId}: ${err}`);
     }
 }
 
 async function forwardMessageToDiscord(slackMessage) {
     log(JSON.stringify(slackMessage, null, 3), 'slack', 3);
 
-    const promises = [fetchSlackProfile(slackMessage.user), normaliseSlackMessage(slackMessage)];
-    try {
-        const [fetched_profile, content] = await Promise.all(promises);
-        let filePromises = [];
+    let filePromises = [];
 
-        if (slackMessage.files && slackMessage.files.length > 0) {
-            for (let file of slackMessage.files) {
-                if (file.id) {
-                    filePromises.push(fetchSlackFile(file.id).then(fetchedFile => {
-                        if (fetchedFile.permalink_public) {
-                            content += `\n${fetchedFile.permalink_public}`;
-                        }
-                    }));
+    if (slackMessage.files && slackMessage.files.length > 0) {
+        for (let file of slackMessage.files) {
+            if (file.id) {
+                filePromises.push(fetchSlackFile(file.id));
+            }
+        }
+    }
+
+    const promises = [fetchSlackProfile(slackMessage.user), normaliseSlackMessage(slackMessage), Promise.all(filePromises)];
+    try {
+        let [fetched_profile, content, attachments] = await Promise.all(promises);
+
+        if (attachments && attachments.length > 0) {
+            for (let attachment of attachments) {
+                if (attachment.permalink_public) {
+                    content += `\n${attachment.permalink_public}`;
                 }
             }
         }
-    
-        await Promise.all(filePromises);
     
         if (content.length == 0) {
             log(`No content to forward for ${fetched_profile.username}`, 'slack', 3);
@@ -200,7 +209,7 @@ async function forwardMessageToDiscord(slackMessage) {
         let options = {
             'content': content,
             'username': fetched_profile.username,
-            'avatarURL': fetched_profile.avatar_url
+            'avatarURL': fetched_profile.avatar_url,
         };
         discordBot.executeWebhook(discordKey.hook_id, discordKey.hook_token, options);
     } catch (err) {

@@ -2,6 +2,9 @@ module.exports = {
     // Webhook to the channel of your choice
     hook_url: 'SLACK_WEBHOOK_URL_HERE',
 
+    // Slack user token here 'xoxp-...
+    user_token: 'SLACK_USER_TOKEN_HERE',
+
     // Slack bot token here 'oxob-...
     bot_token: 'SLACK_BOT_TOKEN_HERE',
 
