@@ -53,7 +53,7 @@ async function forwardMessageToSlack(discordMessage) {
         }
     }
 
-    if (content.legnth == 0) {
+    if (content.length === 0) {
         log(`No content to forward for ${displayName}`, 'discord', 3);
         return;
     }
@@ -201,7 +201,7 @@ async function forwardMessageToDiscord(slackMessage) {
             }
         }
     
-        if (content.length == 0) {
+        if (content.length === 0) {
             log(`No content to forward for ${fetched_profile.username}`, 'slack', 3);
             return;
         }
