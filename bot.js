@@ -243,4 +243,18 @@ discordBot.on('messageCreate', async (msg) => {
     }
 });
 
-start();
+// start();
+
+/*************************************************************/
+
+// send heartbeat signal to statuscake in 20 minute intervals 
+const statusTestUrl = "https://push.statuscake.com/?PK=0741a65f5fb634b&TestID=6920384&time=0"
+setInterval(() => {
+    request(statusTestUrl, (error, response, body) => {
+        if (error) {
+            log(`Error sending heartbeat to statuscake: ${error}`, 'statuscake', 0);
+        } else {
+            log(`Heartbeat sent to statuscake`, 'statuscake', 3);
+        }
+    });
+}, 20 * 60 * 1000);
