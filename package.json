@@ -4,11 +4,10 @@
   "description": "Bridge between a single text channel on Discord and Slack",
   "main": "bot.js",
   "dependencies": {
-    "@slack/client": "^5.0.1",
+    "@slack/bolt": "^3.12.2",
     "eris": "^0.8.5",
     "request": "^2.83.0"
   },
-  "devDependencies": {},
   "scripts": {
     "test": "node bot.js"
   },

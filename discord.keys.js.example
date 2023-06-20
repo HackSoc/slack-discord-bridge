@@ -7,6 +7,6 @@ module.exports = {
     // Add an application and create a bot user, paste the token here
     bot_token: 'BOT_TOKEN_HERE',
 
-    // The Discord channel you want to connect (no '#')
-    channel_name: 'CHANNEL NAME HERE'
+    // The id of the channel you want to connect
+    channel_id: 'CHANNEL_ID_HERE'
 };

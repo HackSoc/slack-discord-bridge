@@ -2,12 +2,18 @@ module.exports = {
     // Webhook to the channel of your choice
     hook_url: 'SLACK_WEBHOOK_URL_HERE',
 
+    // Slack user token here 'xoxp-...
+    user_token: 'SLACK_USER_TOKEN_HERE',
+
     // Slack bot token here 'oxob-...
     bot_token: 'SLACK_BOT_TOKEN_HERE',
 
-    // Slack OAuth token here (needs profiles:read) 'obop-...
-    oauth_token: 'SLACK_OAUTH_HERE',
+    // Slack app token here (needs connections:write, authorizations:read) 'xapp-...
+    app_token: 'SLACK_APP_TOKEN_HERE',
 
-    // The Slack channel you want to connect (no '#')
-    channel_name: 'CHANNEL-NAME-HERE'
+    // Slack signing secret here to verify requests
+    signing_secret: 'SLACK_SIGNING_SECRET_HERE',
+
+    // The id of the channel you want to connect
+    channel_id: 'CHANNEL_ID_HERE'
 };
